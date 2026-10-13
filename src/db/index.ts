@@ -1,0 +1,126 @@
+import pg from 'pg';
+import { drizzle as drizzlePg } from 'drizzle-orm/node-postgres';
+import { drizzle as drizzlePglite } from 'drizzle-orm/pglite';
+import { PGlite } from '@electric-sql/pglite';
+import { sql, eq } from 'drizzle-orm';
+import fs from 'node:fs';
+import * as schema from './schema.js';
+import { getConfig } from '../config/env.js';
+import { runMigrations } from './migrate.js';
+import { createTenantRepository } from './tenant.js';
+import { encryptAES256GCM } from '../crypto/aes.js';
+import { defaultMockShopifyClient } from '../shopify/mock.js';
+import { SEED_SHOP_DOMAIN, SEED_ORDERS } from '../shopify/seed-orders.js';
+import { logger } from '../logger/index.js';
+
+const { Pool } = pg;
+
+let pool: pg.Pool | null = null;
+let pgliteInstance: PGlite | null = null;
+let dbInstance: any = null;
+
+export function getPool(connectionString?: string): pg.Pool {
+  if (!pool) {
+    const config = getConfig();
+    pool = new Pool({
+      connectionString: connectionString || config.DATABASE_URL,
+    });
+  }
+  return pool;
+}
+
+export function getDb(customPool?: pg.Pool) {
+  if (customPool) {
+    return drizzlePg(customPool, { schema });
+  }
+
+  if (dbInstance) {
+    return dbInstance;
+  }
+
+  const config = getConfig();
+
+  if (config.LOCAL_MODE) {
+    logger.info({ dataDir: config.PGLITE_DATA_DIR }, 'Starting database in LOCAL_MODE using embedded PGlite');
+    fs.mkdirSync(config.PGLITE_DATA_DIR, { recursive: true });
+    pgliteInstance = new PGlite(config.PGLITE_DATA_DIR);
+    dbInstance = drizzlePglite(pgliteInstance, { schema });
+    return dbInstance;
+  }
+
+  const activePool = getPool();
+  dbInstance = drizzlePg(activePool, { schema });
+  return dbInstance;
+}
+
+export async function checkDbHealth(db: any): Promise<boolean> {
+  try {
+    const result = await db.execute(sql`SELECT 1 as alive`);
+    return Boolean(result);
+  } catch (err) {
+    return false;
+  }
+}
+
+export async function initLocalDb(db: any) {
+  const config = getConfig();
+  logger.info('Initializing local database migrations...');
+  await runMigrations(db);
+
+  const merchantId = 'merchant_acme_001';
+  const existing = await db
+    .select()
+    .from(schema.merchants)
+    .where(eq(schema.merchants.id, merchantId))
+    .limit(1);
+
+  if (existing.length === 0) {
+    logger.info({ merchantId }, 'Seeding default local merchant and credentials...');
+    await db.insert(schema.merchants).values({
+      id: merchantId,
+      name: 'Acme Outdoor Outfitters',
+    });
+
+    const tenantRepo = createTenantRepository(db, merchantId);
+    const encrypted = encryptAES256GCM('shpat_fake_live_token_for_acme_outdoor', config.encryptionKeyBuffer);
+
+    await tenantRepo.saveShopifyInstallation({
+      shopDomain: SEED_SHOP_DOMAIN,
+      accessTokenEncrypted: encrypted.serialized,
+      scope: 'read_orders,read_fulfillments',
+    });
+
+    await db.insert(schema.whatsappNumbers).values({
+      id: 'wnum_acme_001',
+      tenantId: merchantId,
+      phoneNumber: '+15550001111',
+      displayName: 'Acme Official Support',
+      isActive: true,
+    });
+
+    await db.insert(schema.subscriptions).values({
+      id: 'sub_acme_001',
+      tenantId: merchantId,
+      plan: 'pro',
+      status: 'active',
+    });
+  }
+
+  // Populate mock orders in MockShopifyClient
+  for (const order of SEED_ORDERS) {
+    defaultMockShopifyClient.addMockOrder(SEED_SHOP_DOMAIN, order);
+  }
+  logger.info({ count: SEED_ORDERS.length }, 'Loaded fake orders into MockShopifyClient');
+}
+
+export async function closeDb() {
+  if (pool) {
+    await pool.end();
+    pool = null;
+  }
+  if (pgliteInstance) {
+    await pgliteInstance.close();
+    pgliteInstance = null;
+  }
+  dbInstance = null;
+}
