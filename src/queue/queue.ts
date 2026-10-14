@@ -100,7 +100,16 @@ export async function checkRedisHealth(client?: Redis): Promise<boolean> {
 
   try {
     const redis = client || getRedisClient();
-    const res = await redis.ping();
+    let timeoutId: ReturnType<typeof setTimeout>;
+    const timeout = new Promise<never>((_resolve, reject) => {
+      timeoutId = setTimeout(() => reject(new Error('Redis health check timed out')), 3000);
+    });
+    let res: string;
+    try {
+      res = await Promise.race([redis.ping(), timeout]);
+    } finally {
+      clearTimeout(timeoutId!);
+    }
     return res === 'PONG';
   } catch (err) {
     return false;

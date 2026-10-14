@@ -2,6 +2,7 @@ import { buildApp } from './api/app.js';
 import { createInboundWorker } from './worker/worker.js';
 import { getConfig } from './config/env.js';
 import { getDb, initLocalDb } from './db/index.js';
+import { runMigrations } from './db/migrate.js';
 import { logger } from './logger/index.js';
 
 async function main() {
@@ -15,6 +16,9 @@ async function main() {
     if (config.LOCAL_MODE) {
       logger.info('LOCAL_MODE enabled: running auto-migrations and seeding local database...');
       await initLocalDb(db);
+    } else {
+      logger.info('Running database migrations...');
+      await runMigrations(db);
     }
 
     // 1. Start Fastify API server

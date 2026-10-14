@@ -55,7 +55,16 @@ export function getDb(customPool?: pg.Pool) {
 
 export async function checkDbHealth(db: any): Promise<boolean> {
   try {
-    const result = await db.execute(sql`SELECT 1 as alive`);
+    let timeoutId: ReturnType<typeof setTimeout>;
+    const timeout = new Promise<never>((_resolve, reject) => {
+      timeoutId = setTimeout(() => reject(new Error('Database health check timed out')), 3000);
+    });
+    let result: unknown;
+    try {
+      result = await Promise.race([db.execute(sql`SELECT 1 as alive`), timeout]);
+    } finally {
+      clearTimeout(timeoutId!);
+    }
     return Boolean(result);
   } catch (err) {
     return false;
