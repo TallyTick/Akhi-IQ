@@ -77,7 +77,7 @@ const ANGRY_COMPLAINT_PATTERNS = [
 ];
 
 const ORDER_STATUS_PATTERNS = [
-  /where('?s|\s+is)\s+(my\s+)?order/i,
+  /where('?s|\s+is)\s+(my\s+)?(order|package|parcel|shipment)/i,
   /order\s+status/i,
   /track(\s+my)?\s+order/i,
   /track(\s+my)?\s+package/i,
@@ -102,7 +102,7 @@ const ORDER_STATUS_PATTERNS = [
 ];
 
 export function detectIntent(text: string): DetectedIntent {
-  const clean = text.trim();
+  const clean = text.replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, ' ').trim();
 
   // 1. Check for refund or cancellation request
   for (const pattern of REFUND_CANCEL_PATTERNS) {
@@ -144,12 +144,16 @@ export function detectLanguageFast(text: string): SupportedLanguage {
   if (/[\u0900-\u097F]/.test(text)) {
     return 'hi';
   }
+  // Distinctive Portuguese phrases must precede Spanish's shared "pedido" and "por favor".
+  if (/\b(?:status\s+do\s+pedido|onde\s+(?:est[aá]\s+)?(?:o\s+)?pedido|meu\s+pedido|preciso|atendente|equipe|suporte)\b/i.test(text)) {
+    return 'pt';
+  }
   // Spanish keywords
   if (/\b(dónde|donde|pedido|rastrear|estado|hola|gracias|correo|por favor|ayuda)\b/i.test(text)) {
     return 'es';
   }
   // Portuguese keywords
-  if (/\b(onde|meu|pedido|rastreamento|olá|obrigado|ajuda|está|atendimento)\b/i.test(text)) {
+  if (/\b(onde|meu|rastreamento|olá|obrigado|ajuda|está|atendimento)\b/i.test(text)) {
     return 'pt';
   }
 

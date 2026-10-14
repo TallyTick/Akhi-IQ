@@ -24,9 +24,7 @@ describe('30 Realistic Customer Messages Fixtures Suite', () => {
   });
 
   afterAll(async () => {
-    if (pgliteInstance) {
-      await pgliteInstance.close();
-    }
+    if (pgliteInstance) await pgliteInstance.close();
   });
 
   beforeEach(async () => {

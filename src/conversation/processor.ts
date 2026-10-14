@@ -210,7 +210,7 @@ export async function processInboundMessage(params: ProcessMessageParams): Promi
   if (intent === 'human_request') {
     await escalateHandoff(
       'human_requested',
-      `Customer requested human representative: "${body}"`,
+      body,
       templates.humanHandoff()
     );
     return;

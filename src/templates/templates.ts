@@ -47,7 +47,7 @@ const TEMPLATES: Record<SupportedLanguage, TemplateSet> = {
       return `We found ${orders.length} recent orders associated with your phone number:\n${list}\n\nPlease reply with the order number you would like tracking details for.`;
     },
     humanHandoff: () =>
-      `I have transferred your request to our human support team. A representative will get back to you shortly.`,
+      `I have transferred your request to our human support team. An agent will be with you shortly.`,
     windowClosedPlaceholder: () =>
       `[Customer Support Update] Your order inquiry has been received. Our team is reviewing your message and will follow up shortly.`,
     holdingInHandoff: () =>

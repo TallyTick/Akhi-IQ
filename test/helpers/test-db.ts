@@ -12,45 +12,50 @@ export const TEST_WEBHOOK_SECRET = 'whsec_test_secret_key_999';
 
 export async function createTestDb() {
   const pglite = new PGlite();
-  const db = drizzle(pglite, { schema });
+  try {
+    const db = drizzle(pglite, { schema });
 
-  // Run schema migration DDL
-  await runMigrations(db);
+    // Run schema migration DDL
+    await runMigrations(db);
 
-  // Seed test merchant
-  await db.insert(schema.merchants).values({
-    id: TEST_TENANT_ID,
-    name: 'Test Merchant Store',
-  });
+    // Seed test merchant
+    await db.insert(schema.merchants).values({
+      id: TEST_TENANT_ID,
+      name: 'Test Merchant Store',
+    });
 
-  // Seed encrypted Shopify installation
-  const encryptedToken = encryptAES256GCM('shpat_test_token_secret', TEST_ENCRYPTION_KEY);
-  await db.insert(schema.shopifyInstallations).values({
-    id: 'shopify_inst_001',
-    tenantId: TEST_TENANT_ID,
-    shopDomain: SEED_SHOP_DOMAIN,
-    accessTokenEncrypted: encryptedToken.serialized,
-    scope: 'read_orders,read_fulfillments',
-  });
+    // Seed encrypted Shopify installation
+    const encryptedToken = encryptAES256GCM('shpat_test_token_secret', TEST_ENCRYPTION_KEY);
+    await db.insert(schema.shopifyInstallations).values({
+      id: 'shopify_inst_001',
+      tenantId: TEST_TENANT_ID,
+      shopDomain: SEED_SHOP_DOMAIN,
+      accessTokenEncrypted: encryptedToken.serialized,
+      scope: 'read_orders,read_fulfillments',
+    });
 
-  // Seed WhatsApp business number
-  await db.insert(schema.whatsappNumbers).values({
-    id: 'wnum_001',
-    tenantId: TEST_TENANT_ID,
-    phoneNumber: TEST_WHATSAPP_NUMBER,
-    displayName: 'Test WhatsApp Business',
-    isActive: true,
-  });
+    // Seed WhatsApp business number
+    await db.insert(schema.whatsappNumbers).values({
+      id: 'wnum_001',
+      tenantId: TEST_TENANT_ID,
+      phoneNumber: TEST_WHATSAPP_NUMBER,
+      displayName: 'Test WhatsApp Business',
+      isActive: true,
+    });
 
-  // Seed subscription
-  await db.insert(schema.subscriptions).values({
-    id: 'sub_001',
-    tenantId: TEST_TENANT_ID,
-    plan: 'pro',
-    status: 'active',
-  });
+    // Seed subscription
+    await db.insert(schema.subscriptions).values({
+      id: 'sub_001',
+      tenantId: TEST_TENANT_ID,
+      plan: 'pro',
+      status: 'active',
+    });
 
-  return { db, pglite };
+    return { db, pglite };
+  } catch (error) {
+    await pglite.close();
+    throw error;
+  }
 }
 
 export async function resetTestDb(db: any) {

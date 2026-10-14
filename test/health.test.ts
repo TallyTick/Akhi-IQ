@@ -9,6 +9,7 @@ describe('Health Check Route Tests (/health)', () => {
   let testDb: any;
   let pgliteInstance: any;
   let redisMock: any;
+  let failingApp: FastifyInstance | undefined;
 
   beforeAll(async () => {
     const { db, pglite } = await createTestDb();
@@ -26,9 +27,11 @@ describe('Health Check Route Tests (/health)', () => {
   });
 
   afterAll(async () => {
-    await app.close();
-    if (pgliteInstance) {
-      await pgliteInstance.close();
+    try {
+      if (failingApp) await failingApp.close();
+      if (app) await app.close();
+    } finally {
+      if (pgliteInstance) await pgliteInstance.close();
     }
   });
 
@@ -55,7 +58,7 @@ describe('Health Check Route Tests (/health)', () => {
     };
 
     const mockQueue = { add: async () => ({ id: '1' }), close: async () => {} };
-    const failingApp = await buildApp({
+    failingApp = await buildApp({
       db: testDb,
       redisClient: failingRedis as any,
       queue: mockQueue as any,
@@ -73,6 +76,5 @@ describe('Health Check Route Tests (/health)', () => {
     expect(json.redis).toBe('down');
     expect(json.db).toBe('ok');
 
-    await failingApp.close();
   });
 });

@@ -23,9 +23,7 @@ describe('Identity Verification Tests', () => {
   });
 
   afterAll(async () => {
-    if (pgliteInstance) {
-      await pgliteInstance.close();
-    }
+    if (pgliteInstance) await pgliteInstance.close();
   });
 
   beforeEach(async () => {

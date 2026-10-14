@@ -59,9 +59,15 @@ describe('LOCAL_MODE Zero-Dependency Integration Tests', () => {
 
   afterAll(async () => {
     delete process.env.LOCAL_MODE;
-    if (worker) await worker.close();
-    if (app) await app.close();
-    if (pgliteInstance) await pgliteInstance.close();
+    try {
+      if (worker) await worker.close();
+    } finally {
+      try {
+        if (app) await app.close();
+      } finally {
+        if (pgliteInstance) await pgliteInstance.close();
+      }
+    }
   });
 
   it('/health returns 200 ok with mode local and healthy db and redis in local mode', async () => {

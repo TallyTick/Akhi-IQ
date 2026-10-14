@@ -96,7 +96,7 @@ CREATE TABLE IF NOT EXISTS subscriptions (
 
 CREATE TABLE IF NOT EXISTS webhook_events (
   id TEXT PRIMARY KEY,
-  tenant_id REFERENCES merchants(id),
+  tenant_id TEXT REFERENCES merchants(id),
   event_id TEXT NOT NULL UNIQUE,
   source TEXT NOT NULL DEFAULT 'whatsapp',
   payload TEXT NOT NULL,

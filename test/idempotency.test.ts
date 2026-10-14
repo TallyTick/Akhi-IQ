@@ -32,9 +32,10 @@ describe('Webhook Idempotency & Deduplication Tests', () => {
   });
 
   afterAll(async () => {
-    await app.close();
-    if (pgliteInstance) {
-      await pgliteInstance.close();
+    try {
+      if (app) await app.close();
+    } finally {
+      if (pgliteInstance) await pgliteInstance.close();
     }
   });
 
