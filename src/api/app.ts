@@ -3,6 +3,7 @@ import fastifyRawBody from 'fastify-raw-body';
 import { registerHealthRoutes } from './routes/health.js';
 import { registerWebhookRoutes } from './routes/webhooks.js';
 import { registerSettingsRoutes } from './routes/settings.js';
+import { registerInternalShopifyRoutes } from './routes/internal-shopify.js';
 import { getDb } from '../db/index.js';
 import { getRedisClient, getWhatsAppQueue } from '../queue/queue.js';
 import { getConfig } from '../config/env.js';
@@ -52,6 +53,7 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
   registerHealthRoutes(app, { db, redisClient });
   registerWebhookRoutes(app, { db, queue, webhookSecret: options.webhookSecret });
   registerSettingsRoutes(app, { db });
+  registerInternalShopifyRoutes(app, db);
 
   return app;
 }

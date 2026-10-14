@@ -231,7 +231,7 @@ export async function processInboundMessage(params: ProcessMessageParams): Promi
 
   // 13. Retrieve Shopify installation and decrypt token
   const shopifyInstall = await tenantRepo.getShopifyInstallation();
-  if (!shopifyInstall) {
+  if (!shopifyInstall || !shopifyInstall.accessTokenEncrypted) {
     tenantLog.error('Shopify installation missing for tenant');
     await escalateHandoff('store_not_configured', 'Merchant Shopify store integration missing');
     return;

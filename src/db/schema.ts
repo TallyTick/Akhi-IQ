@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, boolean, integer } from 'drizzle-orm/pg-core';
+import { pgTable, text, timestamp, boolean, integer, uniqueIndex } from 'drizzle-orm/pg-core';
 
 export const merchants = pgTable('merchants', {
   id: text('id').primaryKey(),
@@ -9,15 +9,20 @@ export const merchants = pgTable('merchants', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
-export const shopifyInstallations = pgTable('shopify_installations', {
-  id: text('id').primaryKey(),
-  tenantId: text('tenant_id').notNull().references(() => merchants.id),
-  shopDomain: text('shop_domain').notNull(),
-  accessTokenEncrypted: text('access_token_encrypted').notNull(),
-  scope: text('scope'),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-});
+export const shopifyInstallations = pgTable(
+  'shopify_installations',
+  {
+    id: text('id').primaryKey(),
+    tenantId: text('tenant_id').notNull().references(() => merchants.id),
+    shopDomain: text('shop_domain').notNull(),
+    accessTokenEncrypted: text('access_token_encrypted'),
+    scope: text('scope'),
+    status: text('status').notNull().default('installed'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [uniqueIndex('shopify_installations_shop_domain_unique').on(table.shopDomain)]
+);
 
 export const whatsappNumbers = pgTable('whatsapp_numbers', {
   id: text('id').primaryKey(),

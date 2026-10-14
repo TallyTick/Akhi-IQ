@@ -23,6 +23,10 @@ CREATE TABLE IF NOT EXISTS shopify_installations (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+ALTER TABLE shopify_installations ALTER COLUMN access_token_encrypted DROP NOT NULL;
+ALTER TABLE shopify_installations ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'installed';
+CREATE UNIQUE INDEX IF NOT EXISTS shopify_installations_shop_domain_unique ON shopify_installations(shop_domain);
+
 CREATE TABLE IF NOT EXISTS whatsapp_numbers (
   id TEXT PRIMARY KEY,
   tenant_id TEXT NOT NULL REFERENCES merchants(id),

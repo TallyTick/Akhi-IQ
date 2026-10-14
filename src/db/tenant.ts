@@ -1,4 +1,4 @@
-import { eq, and, sql, desc, gte, lt } from 'drizzle-orm';
+import { eq, and, sql, desc, gte, lt, isNotNull } from 'drizzle-orm';
 import {
   merchants,
   shopifyInstallations,
@@ -35,6 +35,7 @@ export interface TenantRepository {
     shopDomain: string;
     accessTokenEncrypted: string;
     scope?: string;
+    status?: string;
   }): Promise<typeof shopifyInstallations.$inferSelect>;
   findWhatsAppNumber(phoneNumber: string): Promise<typeof whatsappNumbers.$inferSelect | null>;
   findConversationByCustomerPhone(customerPhone: string): Promise<typeof conversations.$inferSelect | null>;
@@ -114,7 +115,11 @@ export function createTenantRepository(db: any, tenantId: string): TenantReposit
       const rows = await db
         .select()
         .from(shopifyInstallations)
-        .where(eq(shopifyInstallations.tenantId, tid))
+        .where(and(
+          eq(shopifyInstallations.tenantId, tid),
+          eq(shopifyInstallations.status, 'installed'),
+          isNotNull(shopifyInstallations.accessTokenEncrypted)
+        ))
         .limit(1);
       return rows[0] || null;
     },
@@ -128,6 +133,7 @@ export function createTenantRepository(db: any, tenantId: string): TenantReposit
             shopDomain: data.shopDomain,
             accessTokenEncrypted: data.accessTokenEncrypted,
             scope: data.scope,
+            status: data.status || 'installed',
             updatedAt: new Date(),
           })
           .where(and(eq(shopifyInstallations.tenantId, tid), eq(shopifyInstallations.id, existing.id)))
@@ -143,6 +149,7 @@ export function createTenantRepository(db: any, tenantId: string): TenantReposit
           shopDomain: data.shopDomain,
           accessTokenEncrypted: data.accessTokenEncrypted,
           scope: data.scope,
+          status: data.status || 'installed',
         })
         .returning();
       return inserted;

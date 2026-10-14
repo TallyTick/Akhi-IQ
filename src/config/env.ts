@@ -32,6 +32,7 @@ const envSchema = z.object({
   DATABASE_URL: z.string().default('postgresql://akhi_user:akhi_password@localhost:5432/akhi_db'),
   REDIS_URL: z.string().min(1),
   WHATSAPP_WEBHOOK_SECRET: z.string().default('whsec_test_whatsapp_secret_key_12345'),
+  INTERNAL_API_SECRET: z.string().min(32),
   ENCRYPTION_KEY: z.string(),
   LOG_LEVEL: z.string().default('info'),
   LOCAL_MODE: z.preprocess((val) => val === 'true' || val === true || val === '1', z.boolean()).default(false),
