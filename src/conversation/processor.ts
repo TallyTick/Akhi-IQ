@@ -25,7 +25,8 @@ export interface ProcessMessageParams {
 
 export function normalizePhone(phone: string | null | undefined): string {
   if (!phone) return '';
-  return phone.replace(/[^0-9]/g, '');
+  const digits = phone.replace(/\D/g, '');
+  return digits.startsWith('00') ? digits.slice(2) : digits;
 }
 
 export function is24HourWindowOpen(lastMessageAt: Date | null | undefined, currentTime = new Date()): boolean {
@@ -59,7 +60,7 @@ export async function processInboundMessage(params: ProcessMessageParams): Promi
   }
 
   const tenantRepo = createTenantRepository(db, tenantId);
-  const tenantLog = createTenantLogger(tenantId, { from, to, eventId });
+  const tenantLog = createTenantLogger(tenantId, { eventId });
 
   // 2. RELIABILITY: Never send two replies to the same inbound message
   const alreadyReplied = await tenantRepo.hasRepliedToInboundEvent(eventId);
@@ -68,7 +69,7 @@ export async function processInboundMessage(params: ProcessMessageParams): Promi
     return;
   }
 
-  tenantLog.info({ bodyPreview: body.slice(0, 80) }, 'Processing inbound message for tenant');
+  tenantLog.info('Processing inbound message for tenant');
   await tenantRepo.linkWebhookEvent(eventId, 'processing');
 
   // 3. Find or create conversation
@@ -244,7 +245,7 @@ export async function processInboundMessage(params: ProcessMessageParams): Promi
     try {
       const recentOrders = await retryWithBackoff(
         () => shopifyClient.getRecentOrdersByPhone(shopifyInstall.shopDomain, decryptedToken, from),
-        { name: 'ShopifyRecentOrders', maxRetries: 3 }
+        { name: 'ShopifyRecentOrders', maxRetries: 3, shouldRetry: shouldRetryShopifyLookup }
       );
       await tenantRepo.recordUsage('orders_looked_up', 1);
 
@@ -275,7 +276,7 @@ export async function processInboundMessage(params: ProcessMessageParams): Promi
       return;
     } catch (err: any) {
       tenantLog.error({ err: err?.message }, 'Failed to look up recent orders by phone after retries');
-      await escalateHandoff('system_error', `Failed looking up orders: ${err?.message}`);
+      await escalateHandoff('system_error', 'Failed looking up orders after retries', templates.humanHandoff());
       return;
     }
   }
@@ -286,12 +287,12 @@ export async function processInboundMessage(params: ProcessMessageParams): Promi
     try {
       order = await retryWithBackoff(
         () => shopifyClient.getOrder(shopifyInstall.shopDomain, decryptedToken, targetOrderNumber!),
-        { name: 'ShopifyGetOrder', maxRetries: 3 }
+        { name: 'ShopifyGetOrder', maxRetries: 3, shouldRetry: shouldRetryShopifyLookup }
       );
       await tenantRepo.recordUsage('orders_looked_up', 1);
     } catch (err: any) {
       tenantLog.error({ err: err?.message }, 'Shopify order lookup failed after retries');
-      await escalateHandoff('system_error', `Shopify API error after retries: ${err?.message}`);
+      await escalateHandoff('system_error', 'Shopify API error after retries', templates.humanHandoff());
       return;
     }
   }
@@ -326,13 +327,9 @@ export async function processInboundMessage(params: ProcessMessageParams): Promi
 
   // 17. IDENTITY CHECK BEFORE SHARING ANY ORDER DATA
   const normalizedSenderPhone = normalizePhone(from);
-  const normalizedOrderPhone = normalizePhone(order.customerPhone);
-
-  const isPhoneMatch =
-    normalizedOrderPhone.length > 0 &&
-    (normalizedSenderPhone === normalizedOrderPhone ||
-      normalizedSenderPhone.endsWith(normalizedOrderPhone) ||
-      normalizedOrderPhone.endsWith(normalizedSenderPhone));
+  const orderPhones = order.phones ?? (order.customerPhone ? [order.customerPhone] : []);
+  const isPhoneMatch = normalizedSenderPhone.length > 0 &&
+    orderPhones.some((phone) => normalizePhone(phone) === normalizedSenderPhone);
 
   if (isPhoneMatch) {
     // Verified by sender phone!
@@ -353,7 +350,7 @@ export async function processInboundMessage(params: ProcessMessageParams): Promi
     const orderEmail = (order.customerEmail || '').toLowerCase().trim();
     if (orderEmail && extractedEmail.toLowerCase() === orderEmail) {
       // Verified via email match!
-      tenantLog.info({ targetOrderNumber, extractedEmail }, 'Identity verified via email match');
+      tenantLog.info({ targetOrderNumber }, 'Identity verified via email match');
       await tenantRepo.updateConversation(conversation.id, {
         verifiedAt: new Date(),
         verifiedOrderId: order.id,
@@ -366,7 +363,7 @@ export async function processInboundMessage(params: ProcessMessageParams): Promi
       return;
     } else {
       // Email was provided but DID NOT match order email!
-      tenantLog.warn({ targetOrderNumber, extractedEmail }, 'Identity verification failed: email mismatch');
+      tenantLog.warn({ targetOrderNumber }, 'Identity verification failed: email mismatch');
       await escalateHandoff(
         'unverified',
         `Provided email ${extractedEmail} did not match order #${targetOrderNumber}`,
@@ -374,6 +371,7 @@ export async function processInboundMessage(params: ProcessMessageParams): Promi
       );
       return;
     }
+
   }
 
   // Phone does not match and no email was provided yet: Prompt for email
@@ -383,4 +381,8 @@ export async function processInboundMessage(params: ProcessMessageParams): Promi
   });
 
   await sendReply(templates.unverifiedPhonePrompt(targetOrderNumber!));
+}
+
+function shouldRetryShopifyLookup(error: unknown): boolean {
+  return !(error instanceof Error && 'retryable' in error && error.retryable === false);
 }

@@ -11,12 +11,8 @@ export class EmailHandoffStub implements HandoffNotifier {
 
     log.info(
       {
-        recipientEmail: data.merchantEmail || 'support@merchant.com',
-        customerPhone: data.customerPhone,
-        customerMessage: data.customerMessage,
         conversationId: data.conversationId,
         reason: data.reason,
-        summary: data.summary,
       },
       '[EmailHandoffStub] Handing off customer conversation to merchant support team'
     );
@@ -28,7 +24,6 @@ export class EmailHandoffStub implements HandoffNotifier {
 
     log.info(
       {
-        recipientEmail: data.merchantEmail,
         period: `${data.year}-${String(data.month).padStart(2, '0')}`,
         handledAutomatically: data.conversationsHandledAutomatically,
         handedOff: data.conversationsHandedOff,

@@ -33,6 +33,9 @@ const envSchema = z.object({
   REDIS_URL: z.string().min(1),
   WHATSAPP_WEBHOOK_SECRET: z.string().default('whsec_test_whatsapp_secret_key_12345'),
   INTERNAL_API_SECRET: z.string().min(32),
+  SHOPIFY_MODE: z.enum(['mock', 'app']).default('mock'),
+  SHOPIFY_APP_URL: z.string().url().optional(),
+  SHOPIFY_SHOP_DOMAIN: z.string().default('acme-store.myshopify.com'),
   ENCRYPTION_KEY: z.string(),
   LOG_LEVEL: z.string().default('info'),
   LOCAL_MODE: z.preprocess((val) => val === 'true' || val === true || val === '1', z.boolean()).default(false),
@@ -40,6 +43,14 @@ const envSchema = z.object({
   LLM_PROVIDER: z.enum(['openai', 'anthropic', 'gemini', 'groq', 'stub', 'mock']).default('stub'),
   LLM_API_KEY: z.string().optional(),
   LLM_MODEL: z.string().optional(),
+}).superRefine((config, context) => {
+  if (config.SHOPIFY_MODE === 'app' && !config.SHOPIFY_APP_URL) {
+    context.addIssue({
+      code: 'custom',
+      path: ['SHOPIFY_APP_URL'],
+      message: 'SHOPIFY_APP_URL is required when SHOPIFY_MODE is "app"',
+    });
+  }
 });
 
 export function loadConfig(customEnv?: Record<string, string | undefined>) {

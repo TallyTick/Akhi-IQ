@@ -5,7 +5,7 @@ import { getDb } from '../db/index.js';
 import { getConfig } from '../config/env.js';
 import { processInboundMessage } from '../conversation/processor.js';
 import { ShopifyClient } from '../shopify/types.js';
-import { defaultMockShopifyClient } from '../shopify/mock.js';
+import { createShopifyClient } from '../shopify/client.js';
 import { WhatsAppProvider } from '../whatsapp/provider.js';
 import { defaultMockWhatsAppProvider } from '../whatsapp/mock.js';
 import { OrderExtractor } from '../extractor/extractor.js';
@@ -31,7 +31,7 @@ export interface WorkerDependencies {
 export function createInboundWorker(deps: WorkerDependencies = {}): WorkerInstance {
   const config = getConfig();
   const db = deps.db || getDb();
-  const shopifyClient = deps.shopifyClient || defaultMockShopifyClient;
+  const shopifyClient = deps.shopifyClient || createShopifyClient();
   const whatsAppProvider = deps.whatsAppProvider || defaultMockWhatsAppProvider;
   const orderExtractor = deps.orderExtractor || defaultRegexOrderExtractor;
   const handoffNotifier = deps.handoffNotifier || defaultEmailHandoffStub;

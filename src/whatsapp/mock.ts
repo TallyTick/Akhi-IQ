@@ -24,7 +24,7 @@ export class MockWhatsAppProvider implements WhatsAppProvider {
     };
 
     this.sentMessages.push(record);
-    logger.info({ to, from, messageId, bodyPreview: body.slice(0, 100) }, '[MockWhatsAppProvider] Outbound WhatsApp message sent');
+    logger.info({ messageId }, '[MockWhatsAppProvider] Outbound WhatsApp message sent');
 
     return { messageId };
   }

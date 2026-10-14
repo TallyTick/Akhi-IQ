@@ -3,7 +3,9 @@ export interface ShopifyOrder {
   name: string; // e.g. "#1001"
   orderNumber: string; // e.g. "1001"
   customerPhone?: string | null;
+  phones?: string[];
   customerEmail?: string | null;
+  cancelled?: boolean;
   financialStatus: string; // e.g. "PAID", "PENDING", "REFUNDED"
   fulfillmentStatus: string; // e.g. "FULFILLED", "UNFULFILLED", "IN_TRANSIT"
   displayStatus: string; // e.g. "Delivered", "In Transit", "Processing"

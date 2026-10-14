@@ -10,7 +10,7 @@ import { runMigrations } from './migrate.js';
 import { createTenantRepository } from './tenant.js';
 import { encryptAES256GCM } from '../crypto/aes.js';
 import { defaultMockShopifyClient } from '../shopify/mock.js';
-import { SEED_SHOP_DOMAIN, SEED_ORDERS } from '../shopify/seed-orders.js';
+import { SEED_ORDERS } from '../shopify/seed-orders.js';
 import { logger } from '../logger/index.js';
 
 const { Pool } = pg;
@@ -94,7 +94,7 @@ export async function initLocalDb(db: any) {
     const encrypted = encryptAES256GCM('shpat_fake_live_token_for_acme_outdoor', config.encryptionKeyBuffer);
 
     await tenantRepo.saveShopifyInstallation({
-      shopDomain: SEED_SHOP_DOMAIN,
+      shopDomain: config.SHOPIFY_SHOP_DOMAIN,
       accessTokenEncrypted: encrypted.serialized,
       scope: 'read_orders,read_fulfillments',
     });
@@ -117,7 +117,7 @@ export async function initLocalDb(db: any) {
 
   // Populate mock orders in MockShopifyClient
   for (const order of SEED_ORDERS) {
-    defaultMockShopifyClient.addMockOrder(SEED_SHOP_DOMAIN, order);
+    defaultMockShopifyClient.addMockOrder(config.SHOPIFY_SHOP_DOMAIN, order);
   }
   logger.info({ count: SEED_ORDERS.length }, 'Loaded fake orders into MockShopifyClient');
 }

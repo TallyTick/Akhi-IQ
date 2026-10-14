@@ -6,6 +6,7 @@ export interface RetryOptions {
   maxDelayMs?: number;
   backoffFactor?: number;
   name?: string;
+  shouldRetry?: (error: unknown) => boolean;
 }
 
 export async function retryWithBackoff<T>(
@@ -26,6 +27,9 @@ export async function retryWithBackoff<T>(
       return await fn();
     } catch (err: any) {
       attempt++;
+      if (options.shouldRetry && !options.shouldRetry(err)) {
+        throw err;
+      }
       if (attempt > maxRetries) {
         logger.error({ name, attempt, maxRetries, err: err?.message }, `${name} failed after maximum retry attempts`);
         throw err;
