@@ -6,6 +6,7 @@ export default defineConfig({
     environment: 'node',
     env: {
       NODE_ENV: 'test',
+      DOTENV_CONFIG_PATH: 'test/.env.test',
       LOCAL_MODE: 'false',
       SHOPIFY_MODE: 'mock',
       SHOPIFY_SHOP_DOMAIN: 'acme-store.myshopify.com',
