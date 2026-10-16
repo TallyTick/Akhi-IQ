@@ -8,6 +8,7 @@ import { ShopifyClient } from '../shopify/types.js';
 import { createShopifyClient } from '../shopify/client.js';
 import { WhatsAppProvider } from '../whatsapp/provider.js';
 import { defaultMockWhatsAppProvider } from '../whatsapp/mock.js';
+import { TwilioWhatsAppProvider } from '../whatsapp/twilio.js';
 import { OrderExtractor } from '../extractor/extractor.js';
 import { defaultRegexOrderExtractor } from '../extractor/regex.js';
 import { HandoffNotifier } from '../handoff/notifier.js';
@@ -32,7 +33,15 @@ export function createInboundWorker(deps: WorkerDependencies = {}): WorkerInstan
   const config = getConfig();
   const db = deps.db || getDb();
   const shopifyClient = deps.shopifyClient || createShopifyClient();
-  const whatsAppProvider = deps.whatsAppProvider || defaultMockWhatsAppProvider;
+  const whatsAppProvider =
+    deps.whatsAppProvider ||
+    (config.WHATSAPP_PROVIDER === 'twilio'
+      ? new TwilioWhatsAppProvider(
+          config.TWILIO_ACCOUNT_SID!,
+          config.TWILIO_AUTH_TOKEN!,
+          config.TWILIO_WHATSAPP_FROM!
+        )
+      : defaultMockWhatsAppProvider);
   const orderExtractor = deps.orderExtractor || defaultRegexOrderExtractor;
   const handoffNotifier = deps.handoffNotifier || defaultEmailHandoffStub;
   const encryptionKey = deps.encryptionKey || config.encryptionKeyBuffer;

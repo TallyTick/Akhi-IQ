@@ -14,6 +14,8 @@ export interface AppOptions {
   redisClient?: any;
   queue?: any;
   webhookSecret?: string;
+  twilioAuthToken?: string;
+  publicBaseUrl?: string;
   enableLogging?: boolean;
 }
 
@@ -51,7 +53,13 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
 
   // Register routes
   registerHealthRoutes(app, { db, redisClient });
-  registerWebhookRoutes(app, { db, queue, webhookSecret: options.webhookSecret });
+  registerWebhookRoutes(app, {
+    db,
+    queue,
+    webhookSecret: options.webhookSecret,
+    twilioAuthToken: options.twilioAuthToken,
+    publicBaseUrl: options.publicBaseUrl,
+  });
   registerSettingsRoutes(app, { db });
   registerInternalShopifyRoutes(app, db);
 

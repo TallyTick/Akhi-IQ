@@ -230,5 +230,6 @@ npm test
   - `LLMOrderExtractor`: Entity extraction stub behind a pluggable interface for LLM completions.
 - **`WhatsAppProvider`** (`src/whatsapp/provider.ts`):
   - `MockWhatsAppProvider`: In-memory message recording and structured logging.
+  - `TwilioWhatsAppProvider`: Sends messages through the Twilio REST API using `fetch`. Select it with `WHATSAPP_PROVIDER=twilio` and set `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_FROM`, and `PUBLIC_BASE_URL`. Inbound Twilio messages are accepted at `POST /webhooks/twilio/whatsapp`; the existing signed generic webhook remains available for mock integrations.
 - **`HandoffNotifier`** (`src/handoff/notifier.ts`):
   - `EmailHandoffStub`: Dispatches structured email notifications to merchant support desks.

@@ -1,4 +1,5 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 import { verifyHmacSha256 } from '../../crypto/hmac.js';
 import { extractEventId, recordWebhookEventIfNew } from '../../db/webhooks.js';
 import { enqueueWhatsAppMessage } from '../../queue/queue.js';
@@ -57,7 +58,13 @@ export function parseWhatsAppPayload(body: any): WhatsAppMessagePayload {
 
 export function registerWebhookRoutes(
   app: FastifyInstance,
-  options: { db: any; webhookSecret?: string; queue?: any }
+  options: {
+    db: any;
+    webhookSecret?: string;
+    queue?: any;
+    twilioAuthToken?: string;
+    publicBaseUrl?: string;
+  }
 ) {
   app.post(
     '/webhooks/whatsapp',
@@ -111,4 +118,82 @@ export function registerWebhookRoutes(
       return reply.status(200).send({ status: 'ok', eventId });
     }
   );
+
+  app.post('/webhooks/twilio/whatsapp', async (request: FastifyRequest, reply: FastifyReply) => {
+    const config = getConfig();
+    const authToken = options.twilioAuthToken ?? config.TWILIO_AUTH_TOKEN ?? '';
+    const publicBaseUrl = options.publicBaseUrl ?? config.PUBLIC_BASE_URL ?? '';
+    const signature = request.headers['x-twilio-signature'];
+    const url = `${publicBaseUrl.replace(/\/+$/, '')}/webhooks/twilio/whatsapp`;
+    const parameters =
+      request.body && typeof request.body === 'object'
+        ? request.body as Record<string, string>
+        : {};
+
+    if (
+      !authToken ||
+      !publicBaseUrl ||
+      typeof signature !== 'string' ||
+      !verifyTwilioSignature(url, parameters, signature, authToken)
+    ) {
+      logger.warn('Rejected Twilio WhatsApp webhook: invalid or missing signature');
+      return reply.status(403).send();
+    }
+
+    const stripWhatsAppPrefix = (value: unknown) =>
+      typeof value === 'string' ? value.replace(/^whatsapp:/i, '') : '';
+    const messageSid = typeof parameters?.MessageSid === 'string' ? parameters.MessageSid : '';
+    const payload = {
+      eventId: messageSid,
+      from: stripWhatsAppPrefix(parameters?.From),
+      to: stripWhatsAppPrefix(parameters?.To),
+      body: typeof parameters?.Body === 'string' ? parameters.Body : '',
+      whatsappMessageId: messageSid,
+      timestamp: new Date().toISOString(),
+      rawPayload: parameters,
+    };
+
+    if (!messageSid) {
+      return reply.status(400).send();
+    }
+
+    const { isDuplicate } = await recordWebhookEventIfNew(
+      options.db,
+      messageSid,
+      parameters,
+      'whatsapp'
+    );
+
+    if (!isDuplicate) {
+      await enqueueWhatsAppMessage(payload, options.queue);
+    }
+
+    return reply
+      .type('text/xml; charset=utf-8')
+      .status(200)
+      .send('<?xml version="1.0" encoding="UTF-8"?><Response></Response>');
+  });
+}
+
+export function computeTwilioSignature(
+  url: string,
+  parameters: Record<string, string>,
+  authToken: string
+): string {
+  const signedData = Object.keys(parameters)
+    .sort()
+    .reduce((data, name) => data + name + parameters[name], url);
+
+  return createHmac('sha1', authToken).update(signedData).digest('base64');
+}
+
+export function verifyTwilioSignature(
+  url: string,
+  parameters: Record<string, string>,
+  signature: string,
+  authToken: string
+): boolean {
+  const expected = Buffer.from(computeTwilioSignature(url, parameters, authToken));
+  const received = Buffer.from(signature);
+  return expected.length === received.length && timingSafeEqual(expected, received);
 }

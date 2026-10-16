@@ -36,6 +36,26 @@ describe('Config and Crypto Non-Negotiables', () => {
       expect(buf).toBeInstanceOf(Buffer);
       expect(buf.length).toBe(32);
     });
+
+    it('requires every Twilio setting when the Twilio provider is selected', () => {
+      const config = {
+        ENCRYPTION_KEY: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+        INTERNAL_API_SECRET: 'test-internal-api-secret-that-is-at-least-32-chars',
+        REDIS_URL: 'redis://localhost:6379',
+        WHATSAPP_PROVIDER: 'twilio',
+      };
+
+      expect(() => loadConfig(config)).toThrow(/TWILIO_ACCOUNT_SID/);
+      expect(() =>
+        loadConfig({
+          ...config,
+          TWILIO_ACCOUNT_SID: 'AC123456',
+          TWILIO_AUTH_TOKEN: 'auth-token',
+          TWILIO_WHATSAPP_FROM: '+15550001111',
+          PUBLIC_BASE_URL: 'https://messages.example.com',
+        })
+      ).not.toThrow();
+    });
   });
 
   describe('AES-256-GCM Encryption of Tokens', () => {

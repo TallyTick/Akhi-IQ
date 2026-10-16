@@ -32,6 +32,11 @@ const envSchema = z.object({
   DATABASE_URL: z.string().default('postgresql://akhi_user:akhi_password@localhost:5432/akhi_db'),
   REDIS_URL: z.string().min(1),
   WHATSAPP_WEBHOOK_SECRET: z.string().default('whsec_test_whatsapp_secret_key_12345'),
+  WHATSAPP_PROVIDER: z.enum(['mock', 'twilio']).default('mock'),
+  TWILIO_ACCOUNT_SID: z.string().optional(),
+  TWILIO_AUTH_TOKEN: z.string().optional(),
+  TWILIO_WHATSAPP_FROM: z.string().optional(),
+  PUBLIC_BASE_URL: z.string().url().optional(),
   INTERNAL_API_SECRET: z.string().min(32),
   SHOPIFY_MODE: z.enum(['mock', 'app']).default('mock'),
   SHOPIFY_APP_URL: z.string().url().optional(),
@@ -50,6 +55,22 @@ const envSchema = z.object({
       path: ['SHOPIFY_APP_URL'],
       message: 'SHOPIFY_APP_URL is required when SHOPIFY_MODE is "app"',
     });
+  }
+  if (config.WHATSAPP_PROVIDER === 'twilio') {
+    for (const key of [
+      'TWILIO_ACCOUNT_SID',
+      'TWILIO_AUTH_TOKEN',
+      'TWILIO_WHATSAPP_FROM',
+      'PUBLIC_BASE_URL',
+    ] as const) {
+      if (!config[key]?.trim()) {
+        context.addIssue({
+          code: 'custom',
+          path: [key],
+          message: `${key} is required when WHATSAPP_PROVIDER is "twilio"`,
+        });
+      }
+    }
   }
 });
 

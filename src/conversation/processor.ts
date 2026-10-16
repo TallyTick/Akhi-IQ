@@ -114,7 +114,11 @@ export async function processInboundMessage(params: ProcessMessageParams): Promi
   const sendReply = async (text: string) => {
     const sent = await retryWithBackoff(
       () => whatsAppProvider.sendMessage(from, to, text),
-      { name: 'WhatsAppSendMessage', maxRetries: 3 }
+      {
+        name: 'WhatsAppSendMessage',
+        maxRetries: 3,
+        shouldRetry: (error) => shouldRetryShopifyLookup(error),
+      }
     );
     await tenantRepo.createMessage({
       conversationId: conversation.id,
