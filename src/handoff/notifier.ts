@@ -5,6 +5,8 @@ export interface HandoffNotificationData {
   customerMessage?: string;
   reason: string;
   summary?: string;
+  orderNumber?: string;
+  occurredAt?: Date;
   merchantEmail?: string;
 }
 
@@ -17,6 +19,17 @@ export interface MonthlySummaryEmailData {
   conversationsHandledAutomatically: number;
   conversationsHandedOff: number;
   estimatedHoursSaved: number;
+}
+
+export interface EmailMessage {
+  to: string;
+  subject: string;
+  text: string;
+  html: string;
+}
+
+export interface EmailProvider {
+  sendEmail(message: EmailMessage): Promise<void>;
 }
 
 export interface HandoffNotifier {

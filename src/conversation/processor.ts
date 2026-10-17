@@ -155,6 +155,8 @@ export async function processInboundMessage(params: ProcessMessageParams): Promi
       customerMessage: body,
       reason,
       summary,
+      orderNumber: extraction.orderNumber || conversation.pendingOrderNumber || undefined,
+      occurredAt: now,
       merchantEmail,
     });
 

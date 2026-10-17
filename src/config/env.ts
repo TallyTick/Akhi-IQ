@@ -41,6 +41,9 @@ const envSchema = z.object({
   META_ACCESS_TOKEN: z.string().optional(),
   META_PHONE_NUMBER_ID: z.string().optional(),
   META_VERIFY_TOKEN: z.string().optional(),
+  EMAIL_PROVIDER: z.enum(['stub', 'resend']).default('stub'),
+  RESEND_API_KEY: z.string().optional(),
+  EMAIL_FROM: z.string().optional(),
   INTERNAL_API_SECRET: z.string().min(32),
   SHOPIFY_MODE: z.enum(['mock', 'app']).default('mock'),
   SHOPIFY_APP_URL: z.string().url().optional(),
@@ -102,6 +105,17 @@ const envSchema = z.object({
           code: 'custom',
           path: [key],
           message: `${key} is required when WHATSAPP_PROVIDER is "meta"`,
+        });
+      }
+    }
+  }
+  if (config.EMAIL_PROVIDER === 'resend') {
+    for (const key of ['RESEND_API_KEY', 'EMAIL_FROM'] as const) {
+      if (!config[key]?.trim()) {
+        context.addIssue({
+          code: 'custom',
+          path: [key],
+          message: `${key} is required when EMAIL_PROVIDER is "resend"`,
         });
       }
     }

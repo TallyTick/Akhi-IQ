@@ -13,7 +13,7 @@ import { MetaWhatsAppProvider } from '../whatsapp/meta.js';
 import { OrderExtractor } from '../extractor/extractor.js';
 import { defaultRegexOrderExtractor } from '../extractor/regex.js';
 import { HandoffNotifier } from '../handoff/notifier.js';
-import { defaultEmailHandoffStub } from '../handoff/email.js';
+import { createDefaultHandoffNotifier } from '../handoff/email.js';
 import { logger } from '../logger/index.js';
 
 export interface WorkerInstance {
@@ -49,7 +49,7 @@ export function createInboundWorker(deps: WorkerDependencies = {}): WorkerInstan
           )
         : defaultMockWhatsAppProvider);
   const orderExtractor = deps.orderExtractor || defaultRegexOrderExtractor;
-  const handoffNotifier = deps.handoffNotifier || defaultEmailHandoffStub;
+  const handoffNotifier = deps.handoffNotifier || createDefaultHandoffNotifier();
   const encryptionKey = deps.encryptionKey || config.encryptionKeyBuffer;
 
   if (config.LOCAL_MODE) {

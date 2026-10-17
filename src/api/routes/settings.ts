@@ -1,13 +1,14 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { createTenantRepository } from '../../db/tenant.js';
-import { defaultEmailHandoffStub } from '../../handoff/email.js';
+import { getConfig } from '../../config/env.js';
+import { createDefaultHandoffNotifier } from '../../handoff/email.js';
 import { HandoffNotifier } from '../../handoff/notifier.js';
 
 export function registerSettingsRoutes(
   app: FastifyInstance,
   options: { db: any; handoffNotifier?: HandoffNotifier }
 ) {
-  const notifier = options.handoffNotifier || defaultEmailHandoffStub;
+  const notifier = options.handoffNotifier || createDefaultHandoffNotifier();
 
   // Render HTML settings page
   app.get('/settings', async (request: FastifyRequest, reply: FastifyReply) => {
@@ -109,7 +110,11 @@ export function registerSettingsRoutes(
     const merchant = await tenantRepo.getMerchant();
     const summary = await tenantRepo.getMonthlySummary(year, month);
 
-    const recipientEmail = merchant?.handoffEmail || 'support@merchant.com';
+    const recipientEmail = merchant?.handoffEmail ||
+      (getConfig().EMAIL_PROVIDER === 'stub' ? 'support@merchant.com' : undefined);
+    if (!recipientEmail) {
+      return reply.status(400).send({ error: 'Merchant handoff email is not configured' });
+    }
 
     await notifier.sendMonthlySummary({
       tenantId: merchantId,
