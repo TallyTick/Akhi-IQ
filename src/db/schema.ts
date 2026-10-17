@@ -1,13 +1,19 @@
 import { pgTable, text, timestamp, boolean, integer, uniqueIndex } from 'drizzle-orm/pg-core';
 
-export const merchants = pgTable('merchants', {
-  id: text('id').primaryKey(),
-  name: text('name').notNull(),
-  handoffEmail: text('handoff_email'),
-  customTemplates: text('custom_templates'), // JSON-serialized custom wording
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-});
+export const merchants = pgTable(
+  'merchants',
+  {
+    id: text('id').primaryKey(),
+    name: text('name').notNull(),
+    shopDomain: text('shop_domain'),
+    isActive: boolean('is_active').notNull().default(true),
+    handoffEmail: text('handoff_email'),
+    customTemplates: text('custom_templates'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [uniqueIndex('merchants_shop_domain_unique').on(table.shopDomain)]
+);
 
 export const shopifyInstallations = pgTable(
   'shopify_installations',

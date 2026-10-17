@@ -8,7 +8,6 @@ import * as schema from './schema.js';
 import { getConfig } from '../config/env.js';
 import { runMigrations } from './migrate.js';
 import { createTenantRepository } from './tenant.js';
-import { encryptAES256GCM } from '../crypto/aes.js';
 import { defaultMockShopifyClient } from '../shopify/mock.js';
 import { getSeedOrders } from '../shopify/seed-orders.js';
 import { logger } from '../logger/index.js';
@@ -88,15 +87,8 @@ export async function initLocalDb(db: any) {
     await db.insert(schema.merchants).values({
       id: merchantId,
       name: 'Acme Outdoor Outfitters',
-    });
-
-    const tenantRepo = createTenantRepository(db, merchantId);
-    const encrypted = encryptAES256GCM('shpat_fake_live_token_for_acme_outdoor', config.encryptionKeyBuffer);
-
-    await tenantRepo.saveShopifyInstallation({
       shopDomain: config.SHOPIFY_SHOP_DOMAIN,
-      accessTokenEncrypted: encrypted.serialized,
-      scope: 'read_orders,read_fulfillments',
+      isActive: true,
     });
 
     await db.insert(schema.whatsappNumbers).values({
@@ -113,6 +105,14 @@ export async function initLocalDb(db: any) {
       plan: 'pro',
       status: 'active',
     });
+  } else {
+    await db.update(schema.merchants)
+      .set({
+        shopDomain: config.SHOPIFY_SHOP_DOMAIN,
+        isActive: true,
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.merchants.id, merchantId));
   }
 
   if (config.LOCAL_MODE && config.LOCAL_SANDBOX_NUMBER) {

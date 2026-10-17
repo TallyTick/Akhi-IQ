@@ -3,7 +3,6 @@ import { ShopifyClient, ShopifyOrder } from '../shopify/types.js';
 import { WhatsAppProvider } from '../whatsapp/provider.js';
 import { OrderExtractor, detectIntent, extractEmail } from '../extractor/extractor.js';
 import { HandoffNotifier } from '../handoff/notifier.js';
-import { decryptAES256GCM } from '../crypto/aes.js';
 import { createTenantLogger, logger } from '../logger/index.js';
 import { getTemplates, SupportedLanguage } from '../templates/templates.js';
 import { retryWithBackoff } from '../utils/retry.js';
@@ -60,6 +59,12 @@ export async function processInboundMessage(params: ProcessMessageParams): Promi
   }
 
   const tenantRepo = createTenantRepository(db, tenantId);
+  const merchant = await tenantRepo.getMerchant();
+  const shopDomain = merchant?.shopDomain;
+  if (!merchant?.isActive || !shopDomain) {
+    logger.warn({ eventId }, 'Inactive or unregistered merchant; skipping WhatsApp message');
+    return;
+  }
   const tenantLog = createTenantLogger(tenantId, { eventId });
 
   // 2. RELIABILITY: Never send two replies to the same inbound message
@@ -107,7 +112,6 @@ export async function processInboundMessage(params: ProcessMessageParams): Promi
     language: detectedLang,
   });
 
-  const merchant = await tenantRepo.getMerchant();
   const merchantEmail = merchant?.handoffEmail || undefined;
 
   // Helper to send outbound reply with deduplication key and retry
@@ -237,20 +241,11 @@ export async function processInboundMessage(params: ProcessMessageParams): Promi
   }
 
   // 13. Retrieve Shopify installation and decrypt token
-  const shopifyInstall = await tenantRepo.getShopifyInstallation();
-  if (!shopifyInstall || !shopifyInstall.accessTokenEncrypted) {
-    tenantLog.error('Shopify installation missing for tenant');
-    await escalateHandoff('store_not_configured', 'Merchant Shopify store integration missing');
-    return;
-  }
-
-  const decryptedToken = decryptAES256GCM(shopifyInstall.accessTokenEncrypted, encryptionKey);
-
   // 14. SMARTER UNDERSTANDING: If customer gives NO order number but their phone matches, look up recent orders
   if (!targetOrderNumber && !extractedEmail) {
     try {
       const recentOrders = await retryWithBackoff(
-        () => shopifyClient.getRecentOrdersByPhone(shopifyInstall.shopDomain, decryptedToken, from),
+        () => shopifyClient.getRecentOrdersByPhone(shopDomain, '', from),
         { name: 'ShopifyRecentOrders', maxRetries: 3, shouldRetry: shouldRetryShopifyLookup }
       );
       await tenantRepo.recordUsage('orders_looked_up', 1);
@@ -292,7 +287,7 @@ export async function processInboundMessage(params: ProcessMessageParams): Promi
   if (targetOrderNumber) {
     try {
       order = await retryWithBackoff(
-        () => shopifyClient.getOrder(shopifyInstall.shopDomain, decryptedToken, targetOrderNumber!),
+        () => shopifyClient.getOrder(shopDomain, '', targetOrderNumber!),
         { name: 'ShopifyGetOrder', maxRetries: 3, shouldRetry: shouldRetryShopifyLookup }
       );
       await tenantRepo.recordUsage('orders_looked_up', 1);

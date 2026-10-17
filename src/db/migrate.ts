@@ -4,6 +4,8 @@ export const SCHEMA_DDL = `
 CREATE TABLE IF NOT EXISTS merchants (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
+  shop_domain TEXT,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
   handoff_email TEXT,
   custom_templates TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -12,6 +14,9 @@ CREATE TABLE IF NOT EXISTS merchants (
 
 ALTER TABLE merchants ADD COLUMN IF NOT EXISTS handoff_email TEXT;
 ALTER TABLE merchants ADD COLUMN IF NOT EXISTS custom_templates TEXT;
+ALTER TABLE merchants ADD COLUMN IF NOT EXISTS shop_domain TEXT;
+ALTER TABLE merchants ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE;
+CREATE UNIQUE INDEX IF NOT EXISTS merchants_shop_domain_unique ON merchants(shop_domain);
 
 CREATE TABLE IF NOT EXISTS shopify_installations (
   id TEXT PRIMARY KEY,
@@ -26,6 +31,11 @@ CREATE TABLE IF NOT EXISTS shopify_installations (
 ALTER TABLE shopify_installations ALTER COLUMN access_token_encrypted DROP NOT NULL;
 ALTER TABLE shopify_installations ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'installed';
 CREATE UNIQUE INDEX IF NOT EXISTS shopify_installations_shop_domain_unique ON shopify_installations(shop_domain);
+UPDATE merchants
+SET shop_domain = shopify_installations.shop_domain
+FROM shopify_installations
+WHERE merchants.id = shopify_installations.tenant_id AND merchants.shop_domain IS NULL;
+UPDATE shopify_installations SET access_token_encrypted = NULL;
 
 CREATE TABLE IF NOT EXISTS whatsapp_numbers (
   id TEXT PRIMARY KEY,
