@@ -31,11 +31,15 @@ CREATE TABLE IF NOT EXISTS whatsapp_numbers (
   id TEXT PRIMARY KEY,
   tenant_id TEXT NOT NULL REFERENCES merchants(id),
   phone_number TEXT NOT NULL,
+  provider_number_id TEXT,
   display_name TEXT,
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+ALTER TABLE whatsapp_numbers ADD COLUMN IF NOT EXISTS provider_number_id TEXT;
+CREATE UNIQUE INDEX IF NOT EXISTS whatsapp_numbers_provider_number_id_unique ON whatsapp_numbers(provider_number_id);
 
 CREATE TABLE IF NOT EXISTS conversations (
   id TEXT PRIMARY KEY,

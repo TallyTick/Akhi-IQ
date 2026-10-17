@@ -1,6 +1,8 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
+import { and, eq } from 'drizzle-orm';
 import { verifyHmacSha256 } from '../../crypto/hmac.js';
+import { whatsappNumbers } from '../../db/schema.js';
 import { extractEventId, recordWebhookEventIfNew } from '../../db/webhooks.js';
 import { enqueueWhatsAppMessage } from '../../queue/queue.js';
 import { WhatsAppMessagePayload } from '../../queue/types.js';
@@ -64,6 +66,8 @@ export function registerWebhookRoutes(
     queue?: any;
     twilioAuthToken?: string;
     publicBaseUrl?: string;
+    metaAppSecret?: string;
+    metaVerifyToken?: string;
   }
 ) {
   app.post(
@@ -112,7 +116,7 @@ export function registerWebhookRoutes(
       // 4. Enqueue the job for worker processing
       await enqueueWhatsAppMessage(parsed, options.queue);
 
-      logger.info({ eventId, from: parsed.from, to: parsed.to }, 'Webhook event enqueued successfully');
+      logger.info({ eventId }, 'Webhook event enqueued successfully');
 
       // Return 200 immediately
       return reply.status(200).send({ status: 'ok', eventId });
@@ -173,6 +177,151 @@ export function registerWebhookRoutes(
       .status(200)
       .send('<?xml version="1.0" encoding="UTF-8"?><Response></Response>');
   });
+
+  app.get('/webhooks/meta/whatsapp', async (request: FastifyRequest, reply: FastifyReply) => {
+    const config = getConfig();
+    const query = request.query as Record<string, unknown>;
+    const mode = query['hub.mode'];
+    const token = query['hub.verify_token'];
+    const challenge = query['hub.challenge'];
+    const verifyToken = options.metaVerifyToken ?? config.META_VERIFY_TOKEN ?? '';
+
+    if (
+      mode !== 'subscribe' ||
+      typeof token !== 'string' ||
+      !verifyMetaVerifyToken(token, verifyToken) ||
+      typeof challenge !== 'string'
+    ) {
+      return reply.status(403).send();
+    }
+
+    return reply.type('text/plain').status(200).send(challenge);
+  });
+
+  app.post(
+    '/webhooks/meta/whatsapp',
+    {
+      config: {
+        rawBody: true,
+      },
+    },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const config = getConfig();
+      const appSecret = options.metaAppSecret ?? config.META_APP_SECRET ?? '';
+      const signature = request.headers['x-hub-signature-256'];
+      const rawBody = (request as FastifyRequest & { rawBody?: string }).rawBody;
+
+      if (
+        !appSecret ||
+        typeof signature !== 'string' ||
+        typeof rawBody !== 'string' ||
+        !verifyMetaSignature(rawBody, signature, appSecret)
+      ) {
+        logger.warn({ ip: request.ip }, 'Rejected Meta WhatsApp webhook: invalid or missing signature');
+        return reply.status(401).send();
+      }
+
+      const payload = request.body as {
+        entry?: Array<{
+          changes?: Array<{
+            value?: {
+              metadata?: { phone_number_id?: unknown };
+              messages?: Array<{
+                id?: unknown;
+                from?: unknown;
+                type?: unknown;
+                text?: { body?: unknown };
+                timestamp?: unknown;
+              }>;
+            };
+          }>;
+        }>;
+      } | null;
+
+      for (const entry of Array.isArray(payload?.entry) ? payload.entry : []) {
+        for (const change of Array.isArray(entry?.changes) ? entry.changes : []) {
+          const value = change?.value;
+          const providerNumberId = value?.metadata?.phone_number_id;
+          if (typeof providerNumberId !== 'string' || !Array.isArray(value?.messages)) {
+            continue;
+          }
+
+          const registeredNumbers = await options.db
+            .select()
+            .from(whatsappNumbers)
+            .where(and(
+              eq(whatsappNumbers.providerNumberId, providerNumberId),
+              eq(whatsappNumbers.isActive, true)
+            ))
+            .limit(1);
+          const registeredNumber = registeredNumbers[0];
+          if (!registeredNumber) {
+            continue;
+          }
+
+          for (const message of value.messages) {
+            if (
+              message?.type !== 'text' ||
+              typeof message.id !== 'string' ||
+              !message.id ||
+              typeof message.from !== 'string' ||
+              typeof message.text?.body !== 'string'
+            ) {
+              continue;
+            }
+
+            const senderDigits = message.from.replace(/\D/g, '');
+            if (!senderDigits) {
+              continue;
+            }
+
+            const inbound = {
+              eventId: message.id,
+              from: `+${senderDigits}`,
+              to: registeredNumber.phoneNumber,
+              body: message.text.body,
+              whatsappMessageId: message.id,
+              timestamp: typeof message.timestamp === 'string' ? message.timestamp : new Date().toISOString(),
+              rawPayload: payload,
+            };
+            const { isDuplicate } = await recordWebhookEventIfNew(
+              options.db,
+              message.id,
+              payload as Record<string, any>,
+              'whatsapp'
+            );
+
+            if (!isDuplicate) {
+              await enqueueWhatsAppMessage(inbound, options.queue);
+            }
+          }
+        }
+      }
+
+      return reply.status(200).send('EVENT_RECEIVED');
+    }
+  );
+}
+
+export function verifyMetaSignature(rawBody: string, signature: string, appSecret: string): boolean {
+  const match = /^sha256=([a-f0-9]{64})$/i.exec(signature);
+  if (!match) {
+    return false;
+  }
+
+  const expected = createHmac('sha256', appSecret).update(rawBody, 'utf8').digest();
+  const received = Buffer.from(match[1], 'hex');
+  return expected.length === received.length && timingSafeEqual(expected, received);
+}
+
+export function verifyMetaVerifyToken(receivedToken: string, expectedToken: string): boolean {
+  if (!expectedToken) {
+    return false;
+  }
+
+  const received = createHash('sha256').update(receivedToken, 'utf8').digest();
+  const expected = createHash('sha256').update(expectedToken, 'utf8').digest();
+  return timingSafeEqual(received, expected);
 }
 
 export function computeTwilioSignature(

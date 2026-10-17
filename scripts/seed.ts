@@ -5,7 +5,7 @@ import { merchants, whatsappNumbers, subscriptions } from '../src/db/schema.js';
 import { encryptAES256GCM } from '../src/crypto/aes.js';
 import { getConfig } from '../src/config/env.js';
 import { defaultMockShopifyClient } from '../src/shopify/mock.js';
-import { SEED_SHOP_DOMAIN, SEED_ORDERS } from '../src/shopify/seed-orders.js';
+import { SEED_SHOP_DOMAIN, getSeedOrders } from '../src/shopify/seed-orders.js';
 import { logger } from '../src/logger/index.js';
 import { eq } from 'drizzle-orm';
 
@@ -63,6 +63,33 @@ async function seed() {
     logger.info({ whatsappPhone }, 'Registered official WhatsApp business number');
   }
 
+  if (config.LOCAL_MODE && config.LOCAL_SANDBOX_NUMBER) {
+    const existingSandboxNumber = await tenantRepo.findWhatsAppNumber(config.LOCAL_SANDBOX_NUMBER);
+    if (existingSandboxNumber) {
+      await db
+        .update(whatsappNumbers)
+        .set({
+          isActive: true,
+          ...(config.WHATSAPP_PROVIDER === 'meta' && config.META_PHONE_NUMBER_ID
+            ? { providerNumberId: config.META_PHONE_NUMBER_ID }
+            : {}),
+          updatedAt: new Date(),
+        })
+        .where(eq(whatsappNumbers.id, existingSandboxNumber.id));
+    } else {
+      await db.insert(whatsappNumbers).values({
+        id: `wnum_local_${merchantId}_${config.LOCAL_SANDBOX_NUMBER.replace(/\D/g, '')}`,
+        tenantId: merchantId,
+        phoneNumber: config.LOCAL_SANDBOX_NUMBER,
+        ...(config.WHATSAPP_PROVIDER === 'meta' && config.META_PHONE_NUMBER_ID
+          ? { providerNumberId: config.META_PHONE_NUMBER_ID }
+          : {}),
+        displayName: 'Acme Official Support',
+        isActive: true,
+      });
+    }
+  }
+
   // 5. Subscription
   const existingSub = await tenantRepo.getSubscription();
   if (!existingSub) {
@@ -77,10 +104,11 @@ async function seed() {
   }
 
   // 6. Register fake orders into MockShopifyClient
-  for (const order of SEED_ORDERS) {
+  const orders = getSeedOrders(config.LOCAL_MODE ? config.LOCAL_TEST_CUSTOMER_PHONE : undefined);
+  for (const order of orders) {
     defaultMockShopifyClient.addMockOrder(SEED_SHOP_DOMAIN, order);
   }
-  logger.info({ count: SEED_ORDERS.length }, 'Loaded fake orders into MockShopifyClient');
+  logger.info({ count: orders.length }, 'Loaded fake orders into MockShopifyClient');
 
   logger.info('Database and mock client seeded successfully!');
   await closeDb();

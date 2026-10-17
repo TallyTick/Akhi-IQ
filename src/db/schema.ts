@@ -24,15 +24,20 @@ export const shopifyInstallations = pgTable(
   (table) => [uniqueIndex('shopify_installations_shop_domain_unique').on(table.shopDomain)]
 );
 
-export const whatsappNumbers = pgTable('whatsapp_numbers', {
-  id: text('id').primaryKey(),
-  tenantId: text('tenant_id').notNull().references(() => merchants.id),
-  phoneNumber: text('phone_number').notNull(),
-  displayName: text('display_name'),
-  isActive: boolean('is_active').notNull().default(true),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-});
+export const whatsappNumbers = pgTable(
+  'whatsapp_numbers',
+  {
+    id: text('id').primaryKey(),
+    tenantId: text('tenant_id').notNull().references(() => merchants.id),
+    phoneNumber: text('phone_number').notNull(),
+    providerNumberId: text('provider_number_id'),
+    displayName: text('display_name'),
+    isActive: boolean('is_active').notNull().default(true),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [uniqueIndex('whatsapp_numbers_provider_number_id_unique').on(table.providerNumberId)]
+);
 
 export const conversations = pgTable('conversations', {
   id: text('id').primaryKey(),

@@ -2,7 +2,7 @@ import pg from 'pg';
 import { drizzle as drizzlePg } from 'drizzle-orm/node-postgres';
 import { drizzle as drizzlePglite } from 'drizzle-orm/pglite';
 import { PGlite } from '@electric-sql/pglite';
-import { sql, eq } from 'drizzle-orm';
+import { sql, eq, and } from 'drizzle-orm';
 import fs from 'node:fs';
 import * as schema from './schema.js';
 import { getConfig } from '../config/env.js';
@@ -10,7 +10,7 @@ import { runMigrations } from './migrate.js';
 import { createTenantRepository } from './tenant.js';
 import { encryptAES256GCM } from '../crypto/aes.js';
 import { defaultMockShopifyClient } from '../shopify/mock.js';
-import { SEED_ORDERS } from '../shopify/seed-orders.js';
+import { getSeedOrders } from '../shopify/seed-orders.js';
 import { logger } from '../logger/index.js';
 
 const { Pool } = pg;
@@ -115,11 +115,47 @@ export async function initLocalDb(db: any) {
     });
   }
 
+  if (config.LOCAL_MODE && config.LOCAL_SANDBOX_NUMBER) {
+    const existingSandboxNumber = await db
+      .select()
+      .from(schema.whatsappNumbers)
+      .where(and(
+        eq(schema.whatsappNumbers.tenantId, merchantId),
+        eq(schema.whatsappNumbers.phoneNumber, config.LOCAL_SANDBOX_NUMBER)
+      ))
+      .limit(1);
+
+    if (existingSandboxNumber.length > 0) {
+      await db
+        .update(schema.whatsappNumbers)
+        .set({
+          isActive: true,
+          ...(config.WHATSAPP_PROVIDER === 'meta' && config.META_PHONE_NUMBER_ID
+            ? { providerNumberId: config.META_PHONE_NUMBER_ID }
+            : {}),
+          updatedAt: new Date(),
+        })
+        .where(eq(schema.whatsappNumbers.id, existingSandboxNumber[0].id));
+    } else {
+      await db.insert(schema.whatsappNumbers).values({
+        id: `wnum_local_${merchantId}_${config.LOCAL_SANDBOX_NUMBER.replace(/\D/g, '')}`,
+        tenantId: merchantId,
+        phoneNumber: config.LOCAL_SANDBOX_NUMBER,
+        ...(config.WHATSAPP_PROVIDER === 'meta' && config.META_PHONE_NUMBER_ID
+          ? { providerNumberId: config.META_PHONE_NUMBER_ID }
+          : {}),
+        displayName: 'Acme Official Support',
+        isActive: true,
+      });
+    }
+  }
+
   // Populate mock orders in MockShopifyClient
-  for (const order of SEED_ORDERS) {
+  const orders = getSeedOrders(config.LOCAL_MODE ? config.LOCAL_TEST_CUSTOMER_PHONE : undefined);
+  for (const order of orders) {
     defaultMockShopifyClient.addMockOrder(config.SHOPIFY_SHOP_DOMAIN, order);
   }
-  logger.info({ count: SEED_ORDERS.length }, 'Loaded fake orders into MockShopifyClient');
+  logger.info({ count: orders.length }, 'Loaded fake orders into MockShopifyClient');
 }
 
 export async function closeDb() {

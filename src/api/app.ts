@@ -16,6 +16,8 @@ export interface AppOptions {
   webhookSecret?: string;
   twilioAuthToken?: string;
   publicBaseUrl?: string;
+  metaAppSecret?: string;
+  metaVerifyToken?: string;
   enableLogging?: boolean;
 }
 
@@ -59,6 +61,8 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
     webhookSecret: options.webhookSecret,
     twilioAuthToken: options.twilioAuthToken,
     publicBaseUrl: options.publicBaseUrl,
+    metaAppSecret: options.metaAppSecret,
+    metaVerifyToken: options.metaVerifyToken,
   });
   registerSettingsRoutes(app, { db });
   registerInternalShopifyRoutes(app, db);

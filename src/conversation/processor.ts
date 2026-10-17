@@ -55,7 +55,7 @@ export async function processInboundMessage(params: ProcessMessageParams): Promi
   // 1. Map receiving WhatsApp number to merchant tenant
   const tenantId = await lookupTenantByWhatsAppNumber(db, to);
   if (!tenantId) {
-    logger.warn({ to, from, eventId }, 'Receiving WhatsApp number is not associated with an active merchant tenant');
+    logger.warn({ eventId }, 'Receiving WhatsApp number is not associated with an active merchant tenant');
     return;
   }
 

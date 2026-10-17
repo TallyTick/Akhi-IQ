@@ -43,3 +43,13 @@ export const SEED_ORDERS: ShopifyOrder[] = [
     trackingNumber: null,
   },
 ];
+
+export function getSeedOrders(testCustomerPhone?: string): ShopifyOrder[] {
+  if (!testCustomerPhone) {
+    return SEED_ORDERS;
+  }
+
+  return SEED_ORDERS.map((order, index) =>
+    index === 0 ? { ...order, customerPhone: testCustomerPhone } : order
+  );
+}
